@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Manage Registry</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="hero">
+    <div class="emoji">🍼</div>
+    <h1>Manage your registry</h1>
+    <p>Add links, check previews, and see who's giving what.</p>
+  </header>
+  <main class="wrap">
+    <section class="panel" id="login" hidden>
+      <h2>Enter your admin key</h2>
+      <p class="small">It was printed in the terminal when the server started.</p>
+      <form class="adder" id="login-form"><input id="key" placeholder="Admin key" autocomplete="off"><button>Unlock</button></form>
+      <p class="error" id="login-error"></p>
+    </section>
+
+    <div id="app" hidden>
+      <section class="panel">
+        <h2>Share with guests</h2>
+        <div class="share"><input id="share-url" readonly><button id="copy">Copy link</button><a class="btn secondary" href="/" target="_blank">Preview</a></div>
+        <div class="stats" id="stats"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Add something</h2>
+        <form class="adder" id="add-form">
+          <input id="add-url" type="url" placeholder="Paste a product link, e.g. https://www.johnlewis.com/…" required>
+          <button id="add-btn">Get preview</button>
+        </form>
+        <p class="error" id="add-error"></p>
+        <form id="draft" hidden>
+          <div class="preview-edit">
+            <div id="draft-img" class="img card"></div>
+            <div>
+              <label for="d-title">Title</label><input id="d-title" required>
+              <div class="row">
+                <div><label for="d-price">Price (optional)</label><input id="d-price" type="number" min="0" step="0.01" inputmode="decimal"></div>
+                <div><label for="d-site">Shop</label><input id="d-site"></div>
+              </div>
+              <label for="d-image">Image URL</label><input id="d-image" type="url">
+              <label for="d-desc">Description</label><textarea id="d-desc" rows="2"></textarea>
+              <label for="d-note">Note to guests (e.g. "in grey please!")</label><input id="d-note">
+              <label class="inline"><input id="d-partial" type="checkbox" checked> Let guests chip in towards this</label>
+              <div class="dialog-actions">
+                <button type="button" class="secondary" id="draft-cancel">Cancel</button>
+                <button id="draft-save">Add to registry</button>
+              </div>
+            </div>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel">
+        <h2>Registry settings</h2>
+        <form id="settings-form">
+          <div class="row">
+            <div><label for="s-title">Title</label><input id="s-title"></div>
+            <div style="flex:0 0 120px"><label for="s-cur">Currency</label><input id="s-cur" maxlength="5"></div>
+          </div>
+          <label for="s-msg">Welcome message</label><textarea id="s-msg" rows="2"></textarea>
+          <div class="dialog-actions"><button>Save settings</button></div>
+        </form>
+      </section>
+
+      <div id="grid" class="grid"></div>
+    </div>
+  </main>
+  <script src="/common.js"></script>
+  <script src="/admin.js"></script>
+</body>
+</html>

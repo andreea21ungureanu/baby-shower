@@ -1,0 +1,15 @@
+{
+  "name": "baby-shower-registry",
+  "version": "1.0.0",
+  "description": "A simple baby shower gift registry: add product links, see previews, share with guests who can buy or chip in.",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

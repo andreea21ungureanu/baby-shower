@@ -1,0 +1,74 @@
+:root {
+  --bg: #fbf7f4; --card: #ffffff; --ink: #3a3340; --muted: #8a8191;
+  --accent: #e8949b; --accent-ink: #fff; --accent-soft: #fbe3e5;
+  --mint: #8fc9b5; --mint-soft: #e2f3ed; --line: #eee6e1; --danger: #c9534f;
+  --radius: 16px; --shadow: 0 2px 12px rgba(58, 51, 64, .07);
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: "Nunito", system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.5; }
+a { color: inherit; }
+.wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px 64px; }
+header.hero { text-align: center; padding: 48px 16px 24px; }
+header.hero h1 { font-family: "Fraunces", Georgia, serif; font-weight: 600; font-size: clamp(2rem, 5vw, 3rem); margin: 0 0 8px; }
+header.hero p { color: var(--muted); max-width: 640px; margin: 0 auto; white-space: pre-line; }
+.emoji { font-size: 2.5rem; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
+.card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; display: flex; flex-direction: column; border: 1px solid var(--line); }
+.card.done { opacity: .72; }
+.card .img { aspect-ratio: 4 / 3; background: var(--accent-soft) center / contain no-repeat; display: flex; align-items: center; justify-content: center; font-size: 3rem; position: relative; }
+.card .img.has { background-color: #fff; }
+.badge { position: absolute; top: 12px; left: 12px; background: var(--mint); color: #fff; font-weight: 700; font-size: .8rem; padding: 4px 10px; border-radius: 999px; }
+.card .body { padding: 16px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.site { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.card h3 { margin: 0; font-size: 1.05rem; line-height: 1.3; }
+.card h3 a { text-decoration: none; }
+.card h3 a:hover { text-decoration: underline; }
+.desc { color: var(--muted); font-size: .9rem; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin: 0; }
+.note { background: var(--mint-soft); border-radius: 10px; padding: 8px 10px; font-size: .9rem; margin: 0; }
+.price { font-weight: 800; font-size: 1.15rem; }
+.progress { height: 10px; background: var(--line); border-radius: 999px; overflow: hidden; }
+.progress > span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), #f0b5a0); border-radius: 999px; transition: width .4s; }
+.small { font-size: .85rem; color: var(--muted); }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; padding-top: 8px; }
+
+button, .btn { font: inherit; font-weight: 700; border: 0; border-radius: 999px; padding: 10px 16px; cursor: pointer; background: var(--accent); color: var(--accent-ink); text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+button:hover, .btn:hover { filter: brightness(.96); }
+button:disabled { opacity: .5; cursor: not-allowed; }
+button.secondary, .btn.secondary { background: var(--accent-soft); color: var(--ink); }
+button.ghost { background: transparent; color: var(--muted); padding: 6px 10px; }
+button.danger { background: transparent; color: var(--danger); padding: 6px 10px; }
+.actions button { flex: 1; }
+
+input, textarea { font: inherit; width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); }
+input:focus, textarea:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+label { display: block; font-weight: 700; font-size: .9rem; margin: 12px 0 4px; }
+label.inline { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+label.inline input { width: auto; }
+.row { display: flex; gap: 12px; } .row > * { flex: 1; }
+
+dialog { border: 0; border-radius: var(--radius); padding: 24px; width: min(460px, calc(100vw - 32px)); box-shadow: 0 10px 40px rgba(0,0,0,.2); color: var(--ink); }
+dialog::backdrop { background: rgba(58, 51, 64, .4); }
+dialog h2 { margin: 0 0 4px; font-family: "Fraunces", Georgia, serif; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.error { color: var(--danger); font-size: .9rem; min-height: 1.2em; margin: 8px 0 0; }
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 12px 20px; border-radius: 999px; box-shadow: var(--shadow); z-index: 10; }
+.empty { text-align: center; color: var(--muted); padding: 48px 16px; }
+.filters { display: flex; gap: 8px; justify-content: center; margin-bottom: 24px; flex-wrap: wrap; }
+.filters button { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+.filters button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+/* Admin */
+.panel { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; border: 1px solid var(--line); margin-bottom: 24px; }
+.panel h2 { margin: 0 0 12px; font-size: 1.2rem; }
+.adder { display: flex; gap: 8px; } .adder input { flex: 1; }
+.preview-edit { display: grid; grid-template-columns: 180px 1fr; gap: 16px; margin-top: 16px; }
+.preview-edit .img { border-radius: 12px; aspect-ratio: 1; }
+.share { display: flex; gap: 8px; align-items: center; } .share input { flex: 1; }
+.contribs { list-style: none; padding: 0; margin: 4px 0 0; font-size: .85rem; }
+.contribs li { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; padding: 6px 0; border-top: 1px dashed var(--line); }
+.contribs .msg { color: var(--muted); font-style: italic; display: block; }
+.toolbar { display: flex; gap: 2px; justify-content: flex-end; }
+.stats { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 12px; }
+.stats div { font-size: .85rem; color: var(--muted); } .stats b { display: block; font-size: 1.4rem; color: var(--ink); }
+@media (max-width: 600px) { .preview-edit { grid-template-columns: 1fr; } .row { flex-direction: column; gap: 0; } .adder, .share { flex-direction: column; } }

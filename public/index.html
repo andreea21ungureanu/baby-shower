@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Baby Shower Registry</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="hero">
+    <div class="emoji">🍼</div>
+    <h1 id="title">Baby Shower Registry</h1>
+    <p id="message"></p>
+  </header>
+  <main class="wrap">
+    <div class="filters">
+      <button data-f="open" class="on">Still needed</button>
+      <button data-f="all">Everything</button>
+      <button data-f="mine">My gifts</button>
+    </div>
+    <div id="grid" class="grid"></div>
+  </main>
+
+  <dialog id="give">
+    <form method="dialog" id="give-form">
+      <h2 id="give-title"></h2>
+      <p class="small" id="give-sub"></p>
+      <div id="mode-pick" class="row" style="margin-top:12px">
+        <label class="inline"><input type="radio" name="type" value="full" checked> Buy it all</label>
+        <label class="inline"><input type="radio" name="type" value="partial"> Chip in</label>
+      </div>
+      <div id="amount-wrap" hidden>
+        <label for="amount">How much would you like to give?</label>
+        <input id="amount" type="number" min="1" step="0.01" inputmode="decimal">
+      </div>
+      <label for="name">Your name</label>
+      <input id="name" required maxlength="80" autocomplete="name">
+      <label for="msg">A note for the parents-to-be (optional)</label>
+      <textarea id="msg" rows="2" maxlength="500"></textarea>
+      <p class="error" id="give-error"></p>
+      <div class="dialog-actions">
+        <button type="button" class="secondary" value="cancel" onclick="this.closest('dialog').close()">Cancel</button>
+        <button type="submit" id="give-submit">Confirm</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/common.js"></script>
+  <script src="/guest.js"></script>
+</body>
+</html>
