@@ -1,6 +1,6 @@
 # 🍼 Baby Shower Registry
 
-A small, self-hosted gift registry. Paste product links, get preview cards (image, title, price pulled from the page), and share one link with guests. Guests can **buy an item outright** or **chip in** towards it — the amount comes off what's left, and the item is marked covered once it's fully funded.
+A small gift registry you can host free on Vercel. Paste product links, get preview cards (image, title, price pulled from the page), and share one link with guests. Guests can **buy an item outright** or **chip in** towards it — the amount comes off what's left, and the item is marked covered once it's fully funded.
 
 ## Run it
 
@@ -30,13 +30,14 @@ Set `ADMIN_KEY=something-memorable` to choose your own key, `PORT` to change the
 - Undo their own pledge from the same browser
 - Guests see progress and counts, not other guests' names
 
-## Sharing it with people
+## Deploy to Vercel
 
-`localhost` only works on your machine. To share, deploy it to any Node host with a persistent disk, e.g. Render, Railway or Fly.io:
+1. Import this repo at **vercel.com/new**. No build settings needed; `vercel.json` handles it.
+2. In the project, go to **Storage → Create Database → Upstash (Redis)** (free tier) and connect it. Vercel adds the `KV_REST_API_URL` / `KV_REST_API_TOKEN` (or `UPSTASH_REDIS_REST_*`) env vars automatically.
+3. Under **Settings → Environment Variables**, add `ADMIN_KEY` set to a private password of your choice.
+4. Redeploy. Share `https://<your-app>.vercel.app/` with guests and use `https://<your-app>.vercel.app/admin` yourself (enter your `ADMIN_KEY`).
 
-1. Create a new web service from this repo — build `npm install`, start `npm start`.
-2. Set `ADMIN_KEY` and attach a persistent volume, pointing `DATA_DIR` at it.
-3. Send guests the site URL; use `/admin` yourself.
+Without Redis env vars the app falls back to a local JSON file, which is what `npm start` uses.
 
 ## Tests
 

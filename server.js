@@ -1,15 +1,24 @@
 const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
-const { load, save, newId, money, itemTotals } = require('./lib/store');
+const { load, mutate, newId, money, itemTotals, backend } = require('./lib/store');
 const { fetchPreview } = require('./lib/preview');
 
 const app = express();
 app.use(express.json({ limit: '100kb' }));
 app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
 
+class HttpError extends Error { constructor(code, msg) { super(msg); this.code = code; } }
+const fail = (msg, code = 400) => { throw new HttpError(code, msg); };
 const str = (v, max = 500) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
-const bad = (res, msg, code = 400) => res.status(code).json({ error: msg });
+// Wrap async handlers so thrown errors become JSON responses.
+const h = (fn) => (req, res) => Promise.resolve(fn(req, res)).then(
+  (out) => res.json(out),
+  (err) => {
+    if (!(err instanceof HttpError)) console.error(err);
+    res.status(err.code || 500).json({ error: err instanceof HttpError ? err.message : 'Something went wrong' });
+  },
+);
 
 function parsePrice(v) {
   if (v === null || v === undefined || v === '') return null;
@@ -17,206 +26,151 @@ function parsePrice(v) {
   return Number.isFinite(n) && n > 0 ? n : NaN;
 }
 
-function publicItem(item) {
-  return {
-    id: item.id,
-    url: item.url,
-    title: item.title,
-    description: item.description,
-    image: item.image,
-    siteName: item.siteName,
-    price: item.price,
-    allowPartial: item.allowPartial,
-    note: item.note,
-    contributorCount: item.contributions.length,
-    ...itemTotals(item),
-  };
-}
-
-function adminItem(item) {
-  return {
-    ...publicItem(item),
-    contributions: item.contributions.map(({ cancelToken, ...c }) => c),
-  };
-}
+const publicItem = (item) => ({
+  id: item.id, url: item.url, title: item.title, description: item.description, image: item.image,
+  siteName: item.siteName, price: item.price, allowPartial: item.allowPartial, note: item.note,
+  contributorCount: item.contributions.length, ...itemTotals(item),
+});
+const adminItem = (item) => ({ ...publicItem(item), contributions: item.contributions.map(({ cancelToken, ...c }) => c) });
+const findItem = (data, id) => data.items.find((i) => i.id === id) || fail('Item not found', 404);
+const publicSettings = ({ adminKey, ...s }) => s;
 
 // ---------- Guest API ----------
 
-app.get('/api/registry', (req, res) => {
-  const data = load();
-  const { title, message, currency } = data.settings;
-  res.json({ settings: { title, message, currency }, items: data.items.map(publicItem) });
-});
+app.get('/api/registry', h(async () => {
+  const data = await load();
+  return { settings: publicSettings(data.settings), items: data.items.map(publicItem) };
+}));
 
-app.post('/api/items/:id/contribute', (req, res) => {
-  const data = load();
-  const item = data.items.find((i) => i.id === req.params.id);
-  if (!item) return bad(res, 'Item not found', 404);
-
+app.post('/api/items/:id/contribute', h((req) => mutate((data) => {
+  const item = findItem(data, req.params.id);
   const name = str(req.body.name, 80);
   const message = str(req.body.message, 500);
-  const type = req.body.type === 'partial' ? 'partial' : 'full';
-  if (!name) return bad(res, 'Please tell us your name');
+  let type = req.body.type === 'partial' ? 'partial' : 'full';
+  if (!name) fail('Please tell us your name');
 
   const { remaining, complete } = itemTotals(item);
-  if (complete) return bad(res, 'Sorry, this item has already been covered!', 409);
+  if (complete) fail('Sorry, this item has already been covered!', 409);
 
   let amount;
   if (type === 'full') {
     amount = remaining ?? 0; // whatever is left (or 0 for unpriced items)
   } else {
-    if (!item.allowPartial || item.price == null) return bad(res, 'This item can only be bought outright');
+    if (!item.allowPartial || item.price == null) fail('This item can only be bought outright');
     amount = money(req.body.amount);
-    if (!Number.isFinite(amount) || amount <= 0) return bad(res, 'Please enter an amount');
-    if (amount > remaining) return bad(res, `Only ${remaining.toFixed(2)} is left on this item`);
+    if (!Number.isFinite(amount) || amount <= 0) fail('Please enter an amount');
+    if (amount > remaining) fail(`Only ${remaining.toFixed(2)} is left on this item`);
+    if (amount === remaining) type = 'full';
   }
 
-  const contribution = {
-    id: newId(),
-    name,
-    message,
-    type: type === 'partial' && amount === remaining ? 'full' : type,
-    amount,
-    createdAt: new Date().toISOString(),
-    cancelToken: crypto.randomBytes(16).toString('hex'),
-  };
-  item.contributions.push(contribution);
-  save();
-  res.json({
-    item: publicItem(item),
-    contribution: { id: contribution.id, itemId: item.id, amount, type: contribution.type, cancelToken: contribution.cancelToken },
-  });
-});
+  const c = { id: newId(), name, message, type, amount, createdAt: new Date().toISOString(), cancelToken: crypto.randomBytes(16).toString('hex') };
+  item.contributions.push(c);
+  return { item: publicItem(item), contribution: { id: c.id, itemId: item.id, amount, type, cancelToken: c.cancelToken } };
+})));
 
-// Guests can undo their own pledge using the token returned when they made it.
-app.delete('/api/items/:id/contributions/:cid', (req, res) => {
-  const data = load();
-  const item = data.items.find((i) => i.id === req.params.id);
-  if (!item) return bad(res, 'Item not found', 404);
+// Guests can undo their own pledge with the token they got; the owner can remove any.
+app.delete('/api/items/:id/contributions/:cid', h((req) => mutate((data) => {
+  const item = findItem(data, req.params.id);
   const idx = item.contributions.findIndex((c) => c.id === req.params.cid);
-  if (idx === -1) return bad(res, 'Contribution not found', 404);
-  const token = String(req.get('x-cancel-token') || '');
+  if (idx === -1) fail('Contribution not found', 404);
   const isAdmin = req.get('x-admin-key') === data.settings.adminKey;
-  if (!isAdmin && token !== item.contributions[idx].cancelToken) return bad(res, 'Not allowed', 403);
+  if (!isAdmin && String(req.get('x-cancel-token') || '') !== item.contributions[idx].cancelToken) fail('Not allowed', 403);
   item.contributions.splice(idx, 1);
-  save();
-  res.json({ item: isAdmin ? adminItem(item) : publicItem(item) });
-});
+  return { item: isAdmin ? adminItem(item) : publicItem(item) };
+})));
 
 // ---------- Owner API ----------
 
 const admin = express.Router();
 admin.use((req, res, next) => {
-  if (req.get('x-admin-key') !== load().settings.adminKey) return bad(res, 'Wrong admin key', 401);
-  next();
+  (async () => {
+    if (backend.kind === 'redis' && !process.env.ADMIN_KEY) fail('Set the ADMIN_KEY environment variable to use the admin page', 503);
+    if (req.get('x-admin-key') !== (await load()).settings.adminKey) fail('Wrong admin key', 401);
+  })().then(() => next(), (err) => res.status(err.code || 500).json({ error: err.message }));
 });
 
-admin.get('/registry', (req, res) => {
-  const data = load();
-  const { adminKey, ...settings } = data.settings;
-  res.json({ settings, items: data.items.map(adminItem) });
-});
+admin.get('/registry', h(async () => {
+  const data = await load();
+  return { settings: publicSettings(data.settings), items: data.items.map(adminItem) };
+}));
 
-admin.put('/settings', (req, res) => {
-  const data = load();
-  if ('title' in req.body) data.settings.title = str(req.body.title, 120) || data.settings.title;
-  if ('message' in req.body) data.settings.message = str(req.body.message, 1000);
-  if ('currency' in req.body) data.settings.currency = str(req.body.currency, 5) || data.settings.currency;
-  save();
-  const { adminKey, ...settings } = data.settings;
-  res.json({ settings });
-});
+admin.put('/settings', h((req) => mutate((data) => {
+  const s = data.settings;
+  if ('title' in req.body) s.title = str(req.body.title, 120) || s.title;
+  if ('message' in req.body) s.message = str(req.body.message, 1000);
+  if ('currency' in req.body) s.currency = str(req.body.currency, 5) || s.currency;
+  return { settings: publicSettings(s) };
+})));
 
-admin.post('/preview', async (req, res) => {
+admin.post('/preview', h(async (req) => {
   const url = str(req.body.url, 2000);
   try {
-    res.json(await fetchPreview(url));
+    return await fetchPreview(url);
   } catch (err) {
-    // Still let the owner add the item manually.
-    let hostname = '';
-    try { hostname = new URL(url).hostname.replace(/^www\./, ''); } catch (_) { return bad(res, 'That doesn\'t look like a valid link'); }
-    res.json({ url, title: '', description: '', image: null, siteName: hostname, price: null, warning: `Couldn't load a preview (${err.message}). You can fill in the details yourself.` });
+    let hostname;
+    try { hostname = new URL(url).hostname.replace(/^www\./, ''); } catch (_) { fail('That doesn\'t look like a valid link'); }
+    // Still let the owner add the item by hand.
+    return { url, title: '', description: '', image: null, siteName: hostname, price: null, warning: `Couldn't load a preview (${err.message}). You can fill in the details yourself.` };
   }
-});
+}));
 
 function applyItemFields(item, body) {
   if ('url' in body) {
     const url = str(body.url, 2000);
-    try { if (!/^https?:$/.test(new URL(url).protocol)) throw 0; } catch (_) { return 'Please enter a valid http(s) link'; }
+    try { if (!/^https?:$/.test(new URL(url).protocol)) throw 0; } catch (_) { fail('Please enter a valid http(s) link'); }
     item.url = url;
   }
   if ('title' in body) item.title = str(body.title, 200);
   if ('description' in body) item.description = str(body.description, 1000);
-  if ('image' in body) {
-    const img = str(body.image, 2000);
-    item.image = /^https?:\/\//i.test(img) ? img : null;
-  }
+  if ('image' in body) { const img = str(body.image, 2000); item.image = /^https?:\/\//i.test(img) ? img : null; }
   if ('siteName' in body) item.siteName = str(body.siteName, 100);
   if ('note' in body) item.note = str(body.note, 500);
   if ('price' in body) {
     const p = parsePrice(body.price);
-    if (Number.isNaN(p)) return 'Price must be a positive number';
+    if (Number.isNaN(p)) fail('Price must be a positive number');
     item.price = p;
   }
   if ('allowPartial' in body) item.allowPartial = Boolean(body.allowPartial);
   if (!item.title) item.title = item.siteName || 'Untitled item';
-  return null;
 }
 
-admin.post('/items', (req, res) => {
-  const data = load();
+admin.post('/items', h((req) => mutate((data) => {
+  if (!('url' in req.body)) fail('A link is required');
   const item = { id: newId(), url: '', title: '', description: '', image: null, siteName: '', note: '', price: null, allowPartial: true, contributions: [], createdAt: new Date().toISOString() };
-  if (!('url' in req.body)) return bad(res, 'A link is required');
-  const err = applyItemFields(item, req.body);
-  if (err) return bad(res, err);
+  applyItemFields(item, req.body);
   data.items.push(item);
-  save();
-  res.json({ item: adminItem(item) });
-});
+  return { item: adminItem(item) };
+})));
 
-admin.put('/items/:id', (req, res) => {
-  const data = load();
-  const item = data.items.find((i) => i.id === req.params.id);
-  if (!item) return bad(res, 'Item not found', 404);
+admin.put('/items/:id', h((req) => mutate((data) => {
+  const item = findItem(data, req.params.id);
   const copy = { ...item };
-  const err = applyItemFields(copy, req.body);
-  if (err) return bad(res, err);
+  applyItemFields(copy, req.body);
   Object.assign(item, copy);
-  save();
-  res.json({ item: adminItem(item) });
-});
+  return { item: adminItem(item) };
+})));
 
-admin.post('/items/:id/move', (req, res) => {
-  const data = load();
-  const idx = data.items.findIndex((i) => i.id === req.params.id);
-  if (idx === -1) return bad(res, 'Item not found', 404);
+admin.post('/items/:id/move', h((req) => mutate((data) => {
+  const idx = data.items.indexOf(findItem(data, req.params.id));
   const to = idx + (req.body.direction === 'up' ? -1 : 1);
-  if (to >= 0 && to < data.items.length) {
-    [data.items[idx], data.items[to]] = [data.items[to], data.items[idx]];
-    save();
-  }
-  res.json({ ok: true });
-});
+  if (to >= 0 && to < data.items.length) [data.items[idx], data.items[to]] = [data.items[to], data.items[idx]];
+  return { ok: true };
+})));
 
-admin.delete('/items/:id', (req, res) => {
-  const data = load();
-  const idx = data.items.findIndex((i) => i.id === req.params.id);
-  if (idx === -1) return bad(res, 'Item not found', 404);
-  data.items.splice(idx, 1);
-  save();
-  res.json({ ok: true });
-});
+admin.delete('/items/:id', h((req) => mutate((data) => {
+  data.items.splice(data.items.indexOf(findItem(data, req.params.id)), 1);
+  return { ok: true };
+})));
 
 app.use('/api/admin', admin);
 
 if (require.main === module) {
   const port = Number(process.env.PORT) || 3000;
-  const data = load();
-  app.listen(port, () => {
-    console.log(`\n🍼 Baby shower registry running`);
+  load().then((data) => app.listen(port, () => {
+    console.log(`\n🍼 Baby shower registry running (${backend.kind} storage)`);
     console.log(`   Guest page (share this):  http://localhost:${port}/`);
     console.log(`   Your admin page:          http://localhost:${port}/admin#key=${data.settings.adminKey}\n`);
-  });
+  }));
 }
 
 module.exports = app;
