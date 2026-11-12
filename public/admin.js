@@ -97,6 +97,52 @@ function closeDraft() {
 }
 
 $('#d-image').addEventListener('input', updateDraftImage);
+
+// Shrink photos in the browser (max 1600px, JPEG) so uploads are small and fast.
+async function resizeImage(file) {
+  if (file.type === 'image/gif') return file; // keep animation
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(bmp.width * scale);
+  canvas.height = Math.round(bmp.height * scale);
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff'; // transparent PNGs get a white background
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+}
+
+async function uploadPhoto(file) {
+  if (!file || !file.type.startsWith('image/')) return toast('Please choose an image');
+  const btn = $('#upload-btn');
+  btn.firstChild.textContent = 'Uploading…';
+  try {
+    const blob = await resizeImage(file);
+    const res = await fetch('/api/admin/upload', { method: 'POST', headers: { 'x-admin-key': key, 'Content-Type': blob.type }, body: blob });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+    $('#d-image').value = new URL(data.url, location.origin).href;
+    updateDraftImage();
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    btn.firstChild.textContent = '📷 Upload photo';
+    $('#d-file').value = '';
+  }
+}
+
+$('#d-file').addEventListener('change', (e) => uploadPhoto(e.target.files[0]));
+const drop = $('#draft-img');
+drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('drag'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
+drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('drag'); uploadPhoto(e.dataTransfer.files[0]); });
+// Pasting a screenshot while the form is open uploads it too.
+document.addEventListener('paste', (e) => {
+  if ($('#draft').hidden) return;
+  const file = [...(e.clipboardData?.files || [])].find((f) => f.type.startsWith('image/'));
+  if (file) { e.preventDefault(); uploadPhoto(file); }
+});
 $('#draft-cancel').addEventListener('click', closeDraft);
 
 $('#login-form').addEventListener('submit', (e) => { e.preventDefault(); unlock($('#key').value.trim()); });

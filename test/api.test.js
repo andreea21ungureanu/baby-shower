@@ -83,3 +83,15 @@ test('unpriced items are simply claimed', async () => {
   assert.equal(r.body.item.complete, true);
   assert.equal((await call(`/api/items/${item.id}/contribute`, { method: 'POST', body: { name: 'Sam', type: 'partial', amount: 5 } })).status, 409);
 });
+
+test('owner can upload a photo; guests cannot', async () => {
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+  const up = (headers) => fetch(base + '/api/admin/upload', { method: 'POST', headers: { 'Content-Type': 'image/png', ...headers }, body: png });
+  assert.equal((await up({})).status, 401);
+  const res = await up(adminH);
+  const { url } = await res.json();
+  assert.match(url, /^\/uploads\/[a-f0-9]+\.png$/);
+  assert.equal((await fetch(base + url)).status, 200);
+  const txt = await fetch(base + '/api/admin/upload', { method: 'POST', headers: { 'Content-Type': 'image/svg+xml', ...adminH }, body: '<svg/>' });
+  assert.equal(txt.status, 400);
+});

@@ -3,10 +3,12 @@ const path = require('path');
 const crypto = require('crypto');
 const { load, mutate, newId, money, itemTotals, backend } = require('./lib/store');
 const { fetchPreview } = require('./lib/preview');
+const { saveImage, LOCAL_DIR } = require('./lib/uploads');
 
 const app = express();
 app.use(express.json({ limit: '100kb' }));
 app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
+app.use('/uploads', express.static(LOCAL_DIR, { maxAge: '30d' }));
 
 class HttpError extends Error { constructor(code, msg) { super(msg); this.code = code; } }
 const fail = (msg, code = 400) => { throw new HttpError(code, msg); };
@@ -16,7 +18,7 @@ const h = (fn) => (req, res) => Promise.resolve(fn(req, res)).then(
   (out) => res.json(out),
   (err) => {
     if (!(err instanceof HttpError)) console.error(err);
-    res.status(err.code || 500).json({ error: err instanceof HttpError ? err.message : 'Something went wrong' });
+    res.status(err instanceof HttpError ? err.code : 500).json({ error: err instanceof HttpError ? err.message : 'Something went wrong' });
   },
 );
 
@@ -102,6 +104,17 @@ admin.put('/settings', h((req) => mutate((data) => {
   return { settings: publicSettings(s) };
 })));
 
+// Photos are resized in the browser first, so they stay well under Vercel's 4.5MB request limit.
+admin.post('/upload', express.raw({ type: 'image/*', limit: '4mb' }), h(async (req) => {
+  if (!Buffer.isBuffer(req.body) || !req.body.length) fail('No image received');
+  try {
+    return { url: await saveImage(req.body, req.get('content-type')) };
+  } catch (err) {
+    if (err.code === 400) fail(err.message);
+    throw err;
+  }
+}));
+
 admin.post('/preview', h(async (req) => {
   const url = str(req.body.url, 2000);
   try {
@@ -163,6 +176,14 @@ admin.delete('/items/:id', h((req) => mutate((data) => {
 })));
 
 app.use('/api/admin', admin);
+
+// Body-parser errors (e.g. oversized upload) arrive here rather than in h().
+app.use((err, req, res, next) => {
+  if (err.type === 'entity.too.large') return res.status(413).json({ error: 'That image is too large' });
+  if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Invalid request' });
+  console.error(err);
+  res.status(500).json({ error: 'Something went wrong' });
+});
 
 if (require.main === module) {
   const port = Number(process.env.PORT) || 3000;
